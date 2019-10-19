@@ -1,0 +1,53 @@
+FINAL_ID = '13yReqMtL_pUX-fpyb9vqa7EkgwJdHcowEZqN4ZyjPfI'
+
+function main(){
+
+  var sheet = SpreadsheetApp.openById(FINAL_ID).getSheetByName('Task 12');
+  var sheetData = sheet.getRange('A2:J'+String(sheet.getLastRow())).getValues();
+  var b = true;
+  var cont = 0;
+  var data = [
+    ["Highest impression share lost due to budget","Average Impr. Share Lost due to Budget","Impression Share lost due to Ad Rank","Highest impression share lost due to Ad rank","Has YT","Has Shopping","Has Display", "Last updated"]
+  ];
+
+  Logger.log(sheetData)
+  
+  while(b){
+  
+    var minRow = getMinRow(sheetData, 9);
+    var accountId = sheetData[minRow][1]
+    
+    Logger.log(accountId);
+   
+    
+    sheet.getRange(minRow+2, 10).setValue(new Date())   
+    
+    cont++;
+   
+    var sheetData = sheet.getRange('A2:J'+String(sheet.getLastRow())).getValues();
+  
+  }
+
+function getMinRow(data, colNum){
+  
+  var min;
+    
+  for (var i = 0; i < data.length; i++){
+       
+    if (!(min)){
+    
+      var min = data[i][colNum].getTime();
+      var row = i;
+    
+    } else if (data[i][colNum].getTime() < min){
+      
+      var min =  data[i][colNum].getTime();
+      var row = i;
+      
+    }
+    
+  }
+  return row
+  
+  }
+}
