@@ -1,0 +1,57 @@
+HYG_REPORT_ID = '1dQlhmisu_RZh78QL5dsW90CtZbSYPZc3clNocmhAOWo'
+FINAL_ID = '13yReqMtL_pUX-fpyb9vqa7EkgwJdHcowEZqN4ZyjPfI'
+
+function main() {
+  
+  var values = SpreadsheetApp.openById(HYG_REPORT_ID).getSheetByName('Precis UK').getRange('B5:B').getValues();
+  var ssFinal = SpreadsheetApp.openById(FINAL_ID).getSheetByName('Task 9');
+  
+  var arrNew = [];
+  var arrOfArrNew = [];
+  
+  for(var i = 0; i < values.length; i++) {    
+    
+        if(values[i][0]!==''){
+          arrNew.push(values[i][0].replace(/\-/g,"")*1)
+          
+        }
+  }
+  
+  var accountIterator = AdsManagerApp.accounts().withIds(arrNew).get();
+  
+  var data = [
+    ["Account name", "Account ID","Has YT"]
+  ];
+
+  while (accountIterator.hasNext()) {
+    
+    var account = accountIterator.next();
+    
+    AdsManagerApp.select(account);
+    
+    var reportCampaign = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, AdvertisingChannelType " +
+                               "FROM CAMPAIGN_PERFORMANCE_REPORT " +
+                               "DURING LAST_30_DAYS").rows();
+    
+    var reportAccount = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId " +
+                                       "FROM ACCOUNT_PERFORMANCE_REPORT " +
+                                       "DURING LAST_30_DAYS").rows();
+    
+    var accountStats = reportAccount.next();
+    var YTCounter = 0;
+    
+    while(reportCampaign.hasNext()){
+    
+      var reportRow = reportCampaign.next();
+      var hasYT = reportRow.AdvertisingChannelType;
+
+      if (hasYT == "Video") {YTCounter++}
+    }
+
+    var row = [account.getName(), account.getCustomerId(), YTCounter];
+    Logger.log(row);
+    data.push(row)
+      
+  }  
+  ssFinal.getRange(1,1,data.length, row.length).setValues(data)
+}
