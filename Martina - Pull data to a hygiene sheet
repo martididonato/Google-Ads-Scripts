@@ -1,0 +1,180 @@
+HYGIENE_SHEET = '1sT_O19Q_73PKI6nPoE1toercscbd8l7SxMxenyGw9MA'
+
+function main(){
+
+  var sheet = SpreadsheetApp.openById(HYGIENE_SHEET).getSheetByName('Master Sheet + Account Info');
+  var sheetData = sheet.getRange('A3:AN'+String(sheet.getLastRow())).getValues();
+  var b = true;
+  var cont = 0;
+
+  while(b){
+  
+    
+    var minRow = getMinRow(sheetData, 39);
+    var accountId = sheetData[minRow][1]
+        
+    Logger.log(minRow);
+   // OLD SCRIPT
+ 
+   var accountIterator = AdsManagerApp.accounts().withIds([accountId]).get();
+    
+    while (accountIterator.hasNext()) {
+    
+      var account = accountIterator.next();
+    
+    AdsManagerApp.select(account);
+    
+    
+    var reportCampaign = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, CampaignName, SearchBudgetLostImpressionShare, SearchRankLostImpressionShare, AdvertisingChannelType " +
+                               "FROM CAMPAIGN_PERFORMANCE_REPORT " +
+                               "DURING LAST_30_DAYS").rows();
+    
+    var reportAccount = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, SearchBudgetLostImpressionShare,SearchRankLostImpressionShare " +
+                                       "FROM ACCOUNT_PERFORMANCE_REPORT " +
+                                       "DURING LAST_30_DAYS").rows();
+    
+    var accountStats = reportAccount.next();
+   
+    var maxISBudget = 0;
+    var maxISBudgetCampaign = null;
+    var maxISRank = 0;
+    var maxISRankCampaign = null;
+    var YTCounter = 0;
+    var ShoppingCounter = 0;
+    var DisplayCounter = 0;
+    
+    
+    while(reportCampaign.hasNext()){
+
+      var reportRow = reportCampaign.next();
+      
+        var imprShareBudgetString = reportRow.SearchBudgetLostImpressionShare;
+        
+        if (imprShareBudgetString == "--"){
+        
+          var imprBudgetShare = 0;
+          
+        } else {
+        
+          var imprBudgetShare = parseFloat(imprShareBudgetString) / 100.0;
+          
+        }
+      
+        if (imprBudgetShare > maxISBudget) {
+          
+          var maxISBudget =  imprBudgetShare;
+          var maxISBudgetCampaign = reportRow.CampaignName;
+    	  
+        }
+    
+    
+    
+
+       
+    //AD RANK
+    
+       var imprShareRankString = reportRow.SearchRankLostImpressionShare;
+
+          if (imprShareRankString == "--"){
+
+            var imprShareRank = 0;
+
+          } else {
+
+            var imprShareRank = parseFloat(imprShareRankString) / 100.0;
+
+          }
+
+
+        if (imprShareRank > maxISRank) {
+
+            var maxISRank =  imprShareRank;
+            var maxISRankCampaign = reportRow.CampaignName;
+          
+        }
+      
+    //HAS YT, SHOPPING, DISPLAY
+      
+      var hasYT = reportRow.AdvertisingChannelType;
+      var hasShopping = reportRow.AdvertisingChannelType;
+      var hasDisplay = reportRow.AdvertisingChannelType;
+
+        if (hasYT == "Video") {YTCounter++}
+        if (hasShopping == "Shopping") {ShoppingCounter++}
+        if (hasDisplay == "Display") {DisplayCounter++}
+      
+    }
+    
+    //BUDGET RESULT
+    if (maxISBudgetCampaign == null) {
+
+    var maxISBudgetOut = "No campaign has IS lost due budget";
+
+    } else {
+
+    var maxISBudgetOut = maxISBudgetCampaign + (" "+(100*maxISBudget).toFixed(2)+"%").toString();
+
+    }
+    //AD RANK RESULT
+   if (maxISRankCampaign == null) {
+
+    var maxISRankOut = "No campaign has IS lost due rank";
+
+    } else {
+
+    var maxISRankOut = maxISRankCampaign + (" "+(100*maxISRank).toFixed(2)+"%").toString();
+      
+      Logger.log(maxISBudgetOut);
+      Logger.log(maxISRankOut);
+    }
+    
+    var row = [maxISBudgetOut, 
+               accountStats.SearchBudgetLostImpressionShare, 
+               accountStats.SearchRankLostImpressionShare, 
+               maxISRankOut, 
+               YTCounter, 
+               ShoppingCounter, 
+               DisplayCounter, 
+               new Date()];
+    
+    Logger.log(row);
+    }
+    
+  sheet.getRange(minRow+3,33,1, row.length).setValues([row])
+  sheetData = sheet.getRange('A3:AN'+String(sheet.getLastRow())).getValues();
+
+  }//While b (always)
+}//main
+
+function getMinRow(data, colNum){
+  
+  var min;
+    
+  for (var i = 0; i < data.length; i++){
+    
+        Logger.log(data[i][colNum]=="");
+        Logger.log(data[i][colNum]);
+    
+    //new code
+    if (data[i][colNum]==""){
+    
+      return i
+    }
+    
+
+     //new code
+    if (!(min)){
+    
+      var min = data[i][colNum].getTime();
+      var row = i;
+    
+    } else if (data[i][colNum].getTime() < min){
+      
+      var min =  data[i][colNum].getTime();
+      var row = i;
+      
+    }
+    
+  }
+  return row
+    }
