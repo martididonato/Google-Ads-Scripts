@@ -1,0 +1,355 @@
+HYGIENE_SHEET = '1sT_O19Q_73PKI6nPoE1toercscbd8l7SxMxenyGw9MA'
+
+function main() {
+
+ var sheet = SpreadsheetApp.openById(HYGIENE_SHEET).getSheetByName('Master Sheet + Account Info');
+ var sheetData = sheet.getRange('A2:AR' + String(sheet.getLastRow())).getValues();
+ var b = true;
+ var cont = 0;
+
+ while (b) {
+   
+  var minRow = getMinRow(sheetData, 43);
+     Logger.log(minRow);
+  var accountId = sheetData[minRow][1]
+  // var cleanaccountId = accountId.replace(/\-/g, "")
+
+Logger.log(accountId);
+
+  // OLD SCRIPT
+
+  var accountIterator = AdsManagerApp.accounts().withIds([accountId]).get();
+
+  while (accountIterator.hasNext()) {
+
+   var account = accountIterator.next();
+    
+   //INSERT EMPTY AUDIENCE VARIABLES
+   var audienceCounter = 0;
+   var bidmodifierCounter = 0;
+
+   //EMPTY BID MODIFIER VARIABLES
+
+   var cpcCounter = 0;
+   var cpvCounter = 0;
+   var cpmCounter = 0;
+   var pageOneCounter = 0;
+   var tgSpendCounter = 0;
+   var tgCPACounter = 0;
+   var tgROASCounter = 0;
+   var maxConvCounter = 0;
+   var maxConvValCounter = 0;
+   var tagOutCounter = 0;
+   var NoneCounter = 0;
+
+
+
+   AdsManagerApp.select(account);
+
+   var campaignIterator = AdsApp.campaigns().get();
+   var totalCampaigns = campaignIterator.totalNumEntities(); //FIXED NUMBER OF CAMPAIGNS    
+    
+
+   // AUDIENCES - INSERT HAS BID MOD
+   var hasBidModCount = 0;
+
+
+   while (campaignIterator.hasNext()) {
+
+    var campaign = campaignIterator.next();
+
+    var audienceIterator = campaign.targeting().audiences().get();
+
+    var campaignHasBidMod = false;
+
+
+    while (audienceIterator.hasNext()) {
+
+     audienceCounter++;
+
+     var audience = audienceIterator.next();
+     var bidMod = audience.bidding().getBidModifier();
+     if (bidMod != 1) {
+
+      campaignHasBidMod = true;
+     }
+     if (campaignHasBidMod = true) {
+      hasBidModCount++
+     }
+    }
+   }
+
+   //ADD BID STRATEGY TYPE - DONE
+
+   var reportCampaign = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, CampaignName, BiddingStrategyType, SearchBudgetLostImpressionShare, SearchRankLostImpressionShare, AdvertisingChannelType " +
+    "FROM CAMPAIGN_PERFORMANCE_REPORT " +
+    "DURING LAST_30_DAYS").rows();
+
+   var reportAccount = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, SearchBudgetLostImpressionShare,SearchRankLostImpressionShare " +
+    "FROM ACCOUNT_PERFORMANCE_REPORT " +
+    "DURING LAST_30_DAYS").rows();
+
+   var accountStats = reportAccount.next();
+
+   var maxISBudget = 0;
+   var maxISBudgetCampaign = null;
+   var maxISRank = 0;
+   var maxISRankCampaign = null;
+   var YTCounter = 0;
+   var ShoppingCounter = 0;
+   var DisplayCounter = 0;
+
+   while (reportCampaign.hasNext()) {
+
+    var reportRow = reportCampaign.next();
+
+    // DEFINITION OF BID TRATEGY TYPE - WE WILL START WITH BID STRATEGY BECAUSE BID STRATEGY STARTED BEFORE THE REST IN LINE 26
+
+    var bidStrategy = reportRow.BiddingStrategyType;
+
+    if (bidStrategy == 'cpc') {
+     cpcCounter++
+    } else if (bidStrategy == 'cpv') {
+     cpvCounter++
+    } else if (bidStrategy == 'cpm') {
+     cpmCounter++
+    } else if (bidStrategy == 'Target search page location') {
+     pageOneCounter++
+    } else if (bidStrategy == 'Maximize clicks') {
+     tgSpendCounter++
+    } else if (bidStrategy == 'Target CPA') {
+     tgCPACounter++
+    } else if (bidStrategy == 'Target ROAS') {
+     tgROASCounter++
+    } else if (bidStrategy == 'Maximize Conversions') {
+     maxConvCounter++
+    } else if (bidStrategy == 'Maximize Conversion Value') {
+     maxConvValCounter++
+    } else if (bidStrategy == 'Target Outranking Share') {
+     tagOutCounter++
+    } else if (bidStrategy == 'None' || bidStrategy == 'unknown') {
+     NoneCounter++
+    }
+
+
+     //IMPRESSION SHARE
+
+    var imprShareBudgetString = reportRow.SearchBudgetLostImpressionShare;
+
+    if (imprShareBudgetString == "--") {
+
+     var imprBudgetShare = 0;
+
+    } else {
+
+     var imprBudgetShare = parseFloat(imprShareBudgetString) / 100.0;
+
+    }
+
+    if (imprBudgetShare > maxISBudget) {
+
+     var maxISBudget = imprBudgetShare;
+     var maxISBudgetCampaign = reportRow.CampaignName;
+
+    }
+
+
+    //AD RANK
+
+    var imprShareRankString = reportRow.SearchRankLostImpressionShare;
+
+    if (imprShareRankString == "--") {
+
+     var imprShareRank = 0;
+
+    } else {
+
+     var imprShareRank = parseFloat(imprShareRankString) / 100.0;
+
+    }
+
+
+    if (imprShareRank > maxISRank) {
+
+     var maxISRank = imprShareRank;
+     var maxISRankCampaign = reportRow.CampaignName;
+
+    }
+
+    //HAS YT, SHOPPING, DISPLAY
+
+    var hasYT = reportRow.AdvertisingChannelType;
+    var hasShopping = reportRow.AdvertisingChannelType;
+    var hasDisplay = reportRow.AdvertisingChannelType;
+
+    if (hasYT == "Video") {
+     YTCounter++
+    }
+    if (hasShopping == "Shopping") {
+     ShoppingCounter++
+    }
+    if (hasDisplay == "Display") {
+     DisplayCounter++
+    }
+
+   }
+
+
+    
+
+   //BUDGET RESULT
+   if (maxISBudgetCampaign == null) {
+
+    var maxISBudgetOut = "No campaign has IS lost due budget";
+
+   } else {
+
+    var maxISBudgetOut = maxISBudgetCampaign + (" " + (100 * maxISBudget).toFixed(2) + "%").toString();
+
+   }
+    
+   //AD RANK RESULT
+   if (maxISRankCampaign == null) {
+
+    var maxISRankOut = "No campaign has IS lost due rank";
+
+   } else {
+
+    var maxISRankOut = maxISRankCampaign + (" " + (100 * maxISRank).toFixed(2) + "%").toString();
+
+    Logger.log(maxISBudgetOut);
+    Logger.log(maxISRankOut);
+   }
+
+    
+   //BID STRATEGY RESULT
+
+   if (cpcCounter > 0) {
+    var cpcString = "Manual CPC - " + cpcCounter;
+   } else {
+    var cpcString = "";
+   }
+
+   if (cpvCounter > 0) {
+    var cpvString = " Manual CPV - " + cpvCounter;
+   } else {
+    var cpvString = ""
+   }
+
+   if (cpmCounter > 0) {
+    var cpmString = " Manual CPM - " + cpmCounter;
+   } else {
+    var cpmString = ""
+   }
+
+   if (pageOneCounter > 0) {
+    var pageOneString = " Target Search Page Location - " + pageOneCounter;
+   } else {
+    var pageOneString = ""
+   }
+
+   if (tgSpendCounter > 0) {
+    var tgSpendString = " Maximise Clicks - " + tgSpendCounter;
+   } else {
+    var tgSpendString = ""
+   }
+
+   if (tgCPACounter > 0) {
+    var tgCPAString = " Target CPA - " + tgCPACounter;
+   } else {
+    var tgCPAStrig = ""
+   }
+
+   if (tgROASCounter > 0) {
+    var tgROASString = " Target ROAS - " + tgROASCounter;
+   } else {
+    var tgROASString = ""
+   }
+
+   if (maxConvCounter > 0) {
+    var maxConvString = " Smart Bidding - " + maxConvCounter;
+   } else {
+    var maxConvString = ""
+   }
+
+   if (maxConvValCounter > 0) {
+    var maxConvValString = " Maximise Conversion Value - " + maxConvValCounter;
+   } else {
+    var maxConvValString = ""
+   }
+
+   if (tagOutCounter > 0) {
+    var tagOutString = " Target Outranking Share - " + tagOutCounter;
+   } else {
+    var tagOutString = ""
+   }
+
+   if (NoneCounter > 0) {
+    var NoneString = " None (" + NoneCounter + " - ";
+   } else {
+    var NoneString = ""
+   }    
+    
+   //DEFINE OUTPUT VARIABLES
+   var outputString = cpcString + cpvString + cpmString + pageOneString + tgSpendString + tgCPAString + tgROASString + maxConvString + maxConvValString + tagOutString + NoneString
+   var shareMaxConv = maxConvCounter / totalCampaigns;
+   var shareBidMod = hasBidModCount / totalCampaigns;
+   var shareAud = audienceCounter / totalCampaigns;
+
+   //ADD BID STRATEGY VARIABLES TO ROW - DONE
+
+   var row = [shareBidMod,
+    shareAud,
+    shareMaxConv,
+    outputString,
+    maxISBudgetOut,
+    accountStats.SearchBudgetLostImpressionShare,
+    accountStats.SearchRankLostImpressionShare,
+    maxISRankOut,
+    YTCounter,
+    ShoppingCounter,
+    DisplayCounter,
+    new Date()
+   ];
+
+   Logger.log(row);
+  }
+
+  sheet.getRange(minRow+2, 33, 1, row.length).setValues([row])
+  sheetData = sheet.getRange('A2:AR' + String(sheet.getLastRow())).getValues();
+
+ } // While b (always)
+  } main
+
+ function getMinRow(data, colNum) {
+
+  var min;
+
+  for (var i = 0; i < data.length; i++) {
+
+   Logger.log(data[i][colNum] == "");
+   Logger.log(data[i][colNum]);
+
+   //new code
+   if (data[i][colNum] == "") {
+
+    return i
+   }
+
+
+   //new code
+   if (!(min)) {
+
+    var min = data[i][colNum].getTime();
+    var row = i;
+
+   } else if (data[i][colNum].getTime() < min) {
+
+    var min = data[i][colNum].getTime();
+    var row = i;
+
+   }
+
+  }
+  return row
+ }
