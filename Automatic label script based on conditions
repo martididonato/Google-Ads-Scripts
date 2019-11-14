@@ -1,0 +1,120 @@
+var TO_NOTIFY = ['federico@precisdigital.com','test@precisdigital.com']; //add a comma followed by the email address of the person you want to send the report to inside the ''
+var SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1VrYGSWP7yef4OwebvLFSLdco5aL77VE-NP3g31VyzfI/edit#gid=0';
+
+function main() {
+ 
+  var sheet = SpreadsheetApp.openByUrl(SPREADSHEET_URL).getSheetByName('sql_keywords');
+  var data = [
+    ["Account name", "Campaign name","Keyword", "sum of SQL", "label"]
+  ];
+
+  Logger.log("20190101,"+convertToDate(new Date()))
+  
+  
+  var kwIterator = AdsApp.keywords()
+      .withCondition('Impressions > 0')
+      .forDateRange("20190101,"+convertToDate(new Date()))
+      .withCondition('Status = ENABLED')
+      .withCondition('CampaignStatus = ENABLED')
+      .withCondition('AdGroupStatus = ENABLED')
+      .get();
+
+  var toLabel = [];
+  
+  var conversionSQL = AdsApp.report("SELECT CampaignId, Criteria, ConversionTypeName, AllConversions, CampaignName, AccountDescriptiveName " +
+                                    "FROM KEYWORDS_PERFORMANCE_REPORT " +
+                                    "WHERE ConversionTypeName = 'SQL' " +
+                                    "DURING 20190101,"+convertToDate(new Date())).rows();
+
+  var accountStats = conversionSQL.next();
+          
+  while(conversionSQL.hasNext()){
+  
+    var row = conversionSQL.next();
+    
+    Logger.log([row.ConversionTypeName, row.AllConversions, row.Criteria, row.CampaignId, row.AccountDescriptiveName, row.CampaignName])
+    
+    if (row.ConversionTypeName == 'SQL' && row.AllConversions > 0) {
+      
+      if (row.AllConversions > 4){
+      
+        var label = 'SQL high'
+        
+      } else {
+      
+        var label = 'SQL'
+        
+      }// if - sets label text
+      
+      var keyword = row.Criteria;
+      var campaignId = row.CampaignId;
+      
+      toLabel.push(
+        {
+          keyword: keyword,
+          campaignId: campaignId,
+          label: label,
+        }
+      )       
+        
+    var line = [AdsApp.currentAccount().getName(), row.CampaignName, keyword, row.AllConversions, label];
+    
+    data.push(line) 
+      
+    }// if - conv action == SQL & all conv > 0
+    
+  }//while - Conversion report
+  
+  for (var j in toLabel){
+    
+    var kw = toLabel[j];
+    
+    var kwIterator = AdsApp.keywords()
+        .forDateRange("20190101,"+convertToDate(new Date()))
+        .withCondition("CampaignId = '"+kw.campaignId+"'")
+        .withCondition("Criteria = '"+kw.keyword+"'")
+        .get();
+    
+    while (kwIterator.hasNext()) {
+
+  var keyword = kwIterator.next();
+      
+      keyword.applyLabel(kw.label);
+      
+    }//while - kwIterator has next  
+    
+  }// for each loop - keywordDetails
+  
+    sheet.getRange("A:E").clear();
+  
+    sheet.getRange(1,1,data.length, data[0].length).setValues(data)
+
+  //switch below the name of the account with the correct account
+  
+  MailApp.sendEmail(TO_NOTIFY, 'Peakon US,CA - Automatic label script labelled '+toLabel.length +' Keywords', 'Automatic label script labelled '+toLabel.length+' keywords. Please find the report below.' + ' ' + SPREADSHEET_URL);
+
+}//Main
+
+function myFunction() {
+  
+  var date = new Date();
+  date = date.removeDays(150)
+   
+  Logger.log(convertToDate(date))
+  
+}
+
+function convertToDate(date){
+
+  var year = date.getUTCFullYear();
+  var month = date.getUTCMonth() + 1;
+  var day = date.getUTCDate();
+  
+  return year+('0' + month).slice(-2)+('0' + day).slice(-2)
+
+}
+
+Date.prototype.removeDays = function(days) {
+    this.setDate(this.getDate() - parseInt(days));
+    return this;
+};
