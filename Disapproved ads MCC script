@@ -1,0 +1,78 @@
+var NOTIFY = 'jess@precisdigital.com,xavier@precisdigital.com'; //add a comma and your email address inside the ''
+var SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1u-9WQZenp9rPb_WltD-jN5OYtw285l1G4m5iu7i4fuA/edit#gid=0'; //substitute with your spreasheet URL within the ''
+var MCC_NAME = 'HBO CE' //substitute with your MCC name within the ''
+
+function main() {
+  
+  var ss = SpreadsheetApp.openByUrl(SPREADSHEET_URL)
+  var sheet =ss.getSheetByName('disapproved_ads_data');
+  var users = NOTIFY.split(",");
+  
+  for (var u in users){
+    
+    ss.addEditor(users[u])
+  
+  }
+  
+  var dataOut = [
+    ["Account name", "Campaign name","Disapproved ads count"]
+  ];
+  
+  var countDisapprovedAds = 0;
+  
+  var dictResult = {
+    "dataOut": dataOut,
+    "countDisapprovedAds": countDisapprovedAds,
+  }
+  
+  //add the CID you want the script to check below as '123-456-789' separated by a comma
+  
+  var accountIterator = AdsManagerApp.accounts().withIds(['675-995-0033', '603-004-2307', '463-973-6788','916-845-5348','616-570-3990','840-466-9793']).get();
+  
+  while (accountIterator.hasNext()){
+  
+    dictResult = getAccountReport(accountIterator.next(), dictResult);
+  
+  }
+  
+  sheet.getRange("A:C").clear();
+  sheet.getRange(1,1, dictResult.dataOut.length, dictResult.dataOut[0].length).setValues(dictResult.dataOut)
+  
+  var subject = '[ALERT] you have '+dictResult.countDisapprovedAds+' ads in '+MCC_NAME;
+  var body = "Please check the list of all campaigns here: \n"+SPREADSHEET_URL;
+  
+  MailApp.sendEmail(NOTIFY, NOTIFY, subject, body)
+  
+   
+}
+
+
+
+function getAccountReport(account, dict){
+  
+  var data = dict.dataOut;
+  var counter = dict.countDisapprovedAds;
+  
+  AdsManagerApp.select(account)
+  
+  var campaignIterator = AdsApp.campaigns().withCondition('Status = ENABLED').get();
+  
+  while (campaignIterator.hasNext()) {
+   
+   var campaign = campaignIterator.next();
+   var adsIterator = campaign.ads().withCondition('Status = ENABLED').withCondition('CombinedApprovalStatus = DISAPPROVED').get();
+   var info = ('Checking ' + campaign.getName());
+   var numberAdsDisapproved = adsIterator.totalNumEntities();
+   
+   var row = [AdsApp.currentAccount().getName(), campaign.getName(), numberAdsDisapproved];
+   data.push(row) 
+   counter = counter + numberAdsDisapproved;
+      
+  } //campaign iterator
+  
+  return {
+    "dataOut": data,
+    "countDisapprovedAds": counter,
+  }
+      
+} //main 
