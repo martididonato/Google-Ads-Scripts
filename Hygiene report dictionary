@@ -1,0 +1,181 @@
+HYGIENE_SHEET = '1_xFBheBf3nS6qXA-kAew9AHX7SuA72CYNu7h7zlk7M8'
+
+//SUBSTITUTE IS PART WITH DICTIONARY LOGIC (I.E. DICTIONARY THAT COMBINE THE CAMPAIGN NAME+MAX IS DUE TO BUDGET/RANK)
+
+function main(){
+
+  var sheet = SpreadsheetApp.openById(HYGIENE_SHEET).getSheetByName('Martina test');
+  var sheetData = sheet.getRange('A4:P'+String(sheet.getLastRow())).getValues();
+  var b = true;
+  var cont = 0;
+
+  while(b){
+  
+    
+    var minRow = getMinRow(sheetData, 2);
+
+    var accountId = sheetData[minRow][0];
+ 
+    var accountIterator = AdsManagerApp.accounts().withIds([accountId]).get();
+    
+    while (accountIterator.hasNext()) {
+    
+      var account = accountIterator.next();
+      
+      AdsManagerApp.select(account);
+    
+      var disapprovedAdsCounter = AdsApp.ads().withCondition('CombinedApprovalStatus = DISAPPROVED').get().totalNumEntities();
+      var activeAdgroups = AdsApp.adGroups().withCondition('AdGroupStatus = ENABLED').get();
+      var numberOfAds = AdsApp.ads().withCondition('Status = ENABLED').withCondition('AdGroupStatus = ENABLED').get().totalNumEntities();
+      var sitelinksCounter = AdsApp.extensions().sitelinks().get().totalNumEntities();
+      var calloutCounter = AdsApp.extensions().callouts().get().totalNumEntities();
+      var snippetCounter = AdsApp.extensions().snippets().get().totalNumEntities();
+      var callCounter = AdsApp.extensions().phoneNumbers().get().totalNumEntities();
+    
+      var reportCampaign = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, CampaignName, SearchBudgetLostImpressionShare, SearchRankLostImpressionShare, AdvertisingChannelType " +
+                                         "FROM CAMPAIGN_PERFORMANCE_REPORT " +
+                                         "DURING LAST_30_DAYS").rows();
+
+      var reportAccount = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, SearchBudgetLostImpressionShare,SearchRankLostImpressionShare " +
+                                        "FROM ACCOUNT_PERFORMANCE_REPORT " +
+                                        "DURING LAST_30_DAYS").rows();
+      
+      
+      
+    var accountStats = reportAccount.next();
+    
+    var searchCounter = 0;
+    var YTCounter = 0;
+    var ShoppingCounter = 0;
+    var DisplayCounter = 0;
+    var adgroupCounter = 0;
+    
+    var listImprShareBudget = [];
+    var listImprShareRank = [];
+      
+    while(reportCampaign.hasNext()){
+
+      var reportRow = reportCampaign.next();
+      
+      var campaignName = reportRow.CampaignName;
+      
+      var imprShareLostBudgetStr = reportRow.SearchBudgetLostImpressionShare;
+      var imprShareLostRankStr = reportRow.SearchRankLostImpressionShare;
+      
+      var imprShareBudgetNum = convertPercentToNum(imprShareLostBudgetStr);
+      var imprShareRankNum = convertPercentToNum(imprShareLostRankStr);
+      
+        
+      var dictImprShareBudget = {
+        "name": campaignName, 
+        "value": imprShareBudgetNum, 
+        "valueOut": imprShareLostBudgetStr,
+      }
+     
+      var dictImprShareRank = {
+        "name": campaignName, 
+        "value": imprShareRankNum, 
+        "valueOut": imprShareLostRankStr,
+      }
+      
+      listImprShareBudget.push(dictImprShareBudget);
+      listImprShareRank.push(dictImprShareRank);
+
+      
+    //HAS SEARCH, YT, SHOPPING, DISPLAY
+
+        if (reportRow.AdvertisingChannelType == "Video") {searchCounter++}
+        if (reportRow.AdvertisingChannelType == "Video") {YTCounter++}
+        if (reportRow.AdvertisingChannelType == "Shopping") {ShoppingCounter++}
+        if (reportRow.AdvertisingChannelType == "Display") {DisplayCounter++}
+        if (numberOfAds < 3) {adgroupCounter++}
+      
+    }// 
+    
+    var maxISBudgetOut = maxOut(listImprShareBudget);
+      
+    var maxISRankOut = maxOut(listImprShareRank);
+      
+    var row = [
+      new Date(),
+      accountStats.SearchBudgetLostImpressionShare,
+      maxISBudgetOut,
+      accountStats.SearchRankLostImpressionShare, 
+      maxISRankOut,
+      searchCounter,
+      YTCounter,
+      ShoppingCounter, 
+      DisplayCounter,
+      disapprovedAdsCounter,
+      adgroupCounter,
+      sitelinksCounter,
+      calloutCounter,
+      snippetCounter,
+      callCounter
+    ];
+    
+    Logger.log(row);
+    }
+    
+  sheet.getRange(minRow+4,3,1, row.length).setValues([row])
+  sheetData = sheet.getRange('A4:P'+String(sheet.getLastRow())).getValues();
+
+  }//While b (always)
+}//main
+
+function getMinRow(data, colNum){
+  
+  var minDate;
+    
+  for (var r in data){
+    
+    if (data[r][colNum] == ""){return r}
+    
+    if (!(minDate)){
+      
+      var minDate = data[r][colNum].getTime();
+      var minRow = r;
+    
+    } else if (data[r][colNum].getTime() < minDate){
+
+      var minDate =  data[r][colNum].getTime();
+      var minRow = r;
+      
+    }
+    
+  }
+  
+  return minRow;
+}
+
+function maxOut(arrayValues) {
+  var max = 0;
+  var fieldOut = "--";
+  
+  for (var i in arrayValues) {
+    
+    if (arrayValues[i].value > max){
+    
+      max = arrayValues[i].value;
+      fieldOut = arrayValues[i].name+" ("+arrayValues[i].valueOut+')';
+  
+    }
+  
+  }
+
+  return fieldOut
+
+}
+
+function convertPercentToNum(string){
+
+  if (string == "--"){
+
+    return 0;
+
+  } else {
+
+    return parseFloat(string) / 100.0;
+
+  }
+}
