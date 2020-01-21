@@ -1,0 +1,377 @@
+NEW_HYGIENE_SHEET = '1_xFBheBf3nS6qXA-kAew9AHX7SuA72CYNu7h7zlk7M8'
+
+function main() {
+  
+    Logger.log("INIT Account Settings/Strategy Overview Script")
+
+    //Select sheet and get data
+    var sheet = SpreadsheetApp.openById(NEW_HYGIENE_SHEET).getSheetByName('Backend');
+    var sheetData = sheet.getRange('A2:V' + String(sheet.getLastRow())).getValues(); //THIS IS THE RANGE THAT WE ARE USING FROM THE SHEET
+    var b = true;
+  
+    Logger.log("Sheet Data successfully retrieved");
+
+    //Loop forever
+    while (b) {
+
+      //Retrieve row + Account
+        var minRow = getMinRow(sheetData, 4);
+        var accountId = sheetData[minRow][2]
+        var accountIdNum = parseFloat(accountId.replace(/\-/g, ""))
+        var accountIterator = AdsManagerApp.accounts().withIds([accountId]).get();
+        
+        Logger.log("Proccessing Account: " +  accountId + ' (row number: ' + minRow + ')')
+        
+      //Opening the account Iterator
+        while (accountIterator.hasNext()) {
+
+          //Selecting the account
+            var account = accountIterator.next();
+            AdsManagerApp.select(account);
+          
+            //Setting Counters
+            var audienceCounter = 0; //mutedfortesting
+            var bidmodifierCounter = 0; //might be useless
+            var searchCounter = 0;
+            var YTCounter = 0;
+            var ShoppingCounter = 0;
+            var DisplayCounter = 0;
+            var adGroupHasAdsCounter = 0;
+            var bidModAudiencesCounter = 0;
+            var camCount = 0;
+
+            //Set empty Array for later analysis
+            var listPortfolioStrategyType = [];
+            var listCampaignStrategyType = [];
+            var listAdGroupStrategyType = [];
+            
+            var listImprShareBudget = [];
+            var listImprShareRank = [];
+
+            // Get account stats from adsapp
+            var disapprovedAdsCounter = AdsApp.ads().withCondition('CombinedApprovalStatus = DISAPPROVED').get().totalNumEntities();
+            var numberOfAds = AdsApp.ads().withCondition('Status = ENABLED').withCondition('AdGroupStatus = ENABLED').get().totalNumEntities();
+            var sitelinksCounter = AdsApp.extensions().sitelinks().get().totalNumEntities();
+            var calloutCounter = AdsApp.extensions().callouts().get().totalNumEntities();
+            var snippetCounter = AdsApp.extensions().snippets().get().totalNumEntities();
+
+Logger.log("Disapproved ads: " +disapprovedAdsCounter);
+Logger.log("Live ads: " +numberOfAds);   
+Logger.log("Sitelinks: " +sitelinksCounter);   
+Logger.log("Callouts: " +calloutCounter);            
+          
+            //Set Campaign Iterator
+            var campaignIterator = AdsApp.campaigns().get();
+
+            //Set Ad group Iterator
+            var adGroupIterator = AdsApp.adGroups().get();
+
+            var totalCampaigns = campaignIterator.totalNumEntities(); //FIXED NUMBER OF CAMPAIGNS    
+
+            //QUERIES
+            var reportAccount = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, SearchBudgetLostImpressionShare, SearchRankLostImpressionShare " +
+                "FROM ACCOUNT_PERFORMANCE_REPORT " +
+                "DURING LAST_30_DAYS").rows();
+   
+            var reportBidGoalPerformance = AdsApp.report("SELECT AccountDescriptiveName, ExternalCustomerId, Type " + 
+                                                         "FROM BID_GOAL_PERFORMANCE_REPORT " +
+                                                         "DURING LAST_30_DAYS").rows();
+          
+         // PORTFOLIO BIDGOALPERFORMANCE ITERATOR 
+            while (reportBidGoalPerformance.hasNext()) {
+                
+              var portfolio = reportBidGoalPerformance.next();
+                Logger.log(portfolio.formatForUpload());
+                listPortfolioStrategyType.push(portfolio.Type);
+
+            }
+          
+          Logger.log("No. of bid strategies:" + listPortfolioStrategyType.length)
+          
+          
+            var reportCampaign = AdsApp.report("SELECT CustomerDescriptiveName, ExternalCustomerId, CampaignName, BiddingStrategyType, SearchBudgetLostImpressionShare, SearchRankLostImpressionShare, AdvertisingChannelType " +
+                "FROM CAMPAIGN_PERFORMANCE_REPORT " +
+                "DURING LAST_30_DAYS").rows();
+          
+             //OPEN REPORT CAMPAIGN ITERATOR  
+            //Get Bid Strategy
+            //Get IS on campaign level
+                    
+            while (reportCampaign.hasNext()) {
+                camCount++;
+                //set row
+                var reportRow = reportCampaign.next();
+
+                var campaignName = reportRow.CampaignName;
+
+                //push BS into array
+                listCampaignStrategyType.push(reportRow.BiddingStrategyType);
+
+                //Set IS variable
+                var imprShareLostBudgetStr = reportRow.SearchBudgetLostImpressionShare;
+                var imprShareLostRankStr = reportRow.SearchRankLostImpressionShare;
+
+                var imprShareBudgetNum = convertPercentToNum(imprShareLostBudgetStr);
+                var imprShareRankNum = convertPercentToNum(imprShareLostRankStr);
+
+                //Set IS dict for list
+                var dictImprShareBudget = {
+                    "name": campaignName,
+                    "value": imprShareBudgetNum,
+                    "valueOut": imprShareLostBudgetStr,
+                }
+                
+                var dictImprShareRank = {
+                    "name": campaignName,
+                    "value": imprShareRankNum,
+                    "valueOut": imprShareLostRankStr,
+                }
+
+                //push is dict to list
+                listImprShareBudget.push(dictImprShareBudget);
+                listImprShareRank.push(dictImprShareRank);
+
+                //Count campaign type
+                if (reportRow.AdvertisingChannelType == "Search") {
+                    searchCounter++
+                }
+                if (reportRow.AdvertisingChannelType == "Video") {
+                    YTCounter++
+                }
+                if (reportRow.AdvertisingChannelType == "Shopping") {
+                    ShoppingCounter++
+                }
+                if (reportRow.AdvertisingChannelType == "Display") {
+                    DisplayCounter++
+                }
+
+            } 
+
+            var reportAdGroups = AdsApp.report("SELECT AccountDescriptiveName, ExternalCustomerId, AdGroupName, AdGroupId, BiddingStrategyType " +
+                "FROM ADGROUP_PERFORMANCE_REPORT " +
+                "WHERE AdGroupStatus = ENABLED " +                        
+                "DURING LAST_30_DAYS").rows();
+          
+                                while (reportAdGroups.hasNext()) {
+
+                listAdGroupStrategyType.push(reportAdGroups.next().BiddingStrategyType);
+
+            }
+          
+            var reportAds = AdsApp.report("SELECT AccountDescriptiveName, ExternalCustomerId, AdGroupName, AdGroupId, Id " +
+                "FROM AD_PERFORMANCE_REPORT " +
+                "WHERE AdGroupStatus = ENABLED " +                        
+                "DURING LAST_30_DAYS").rows();
+                  
+            //Get Account Stats
+            var accountStats = reportAccount.next();
+            var accountImprShareBudget = accountStats.SearchBudgetLostImpressionShare;
+            var accountImprShareRank = accountStats.SearchRankLostImpressionShare;  
+          
+          
+            // Iterate through the campaigns
+            // Getting Bid Mod + Audiences
+            while (campaignIterator.hasNext()) {
+                
+                var campaign = campaignIterator.next();
+
+								var audiencesInCampaign = campaign.targeting().audiences().get().totalNumEntities();
+								
+                if(audiencesInCampaign > 0){
+                               
+                    audienceCounter++
+                  
+                }//End of audience counter
+                            
+                var audienceIterator = campaign.targeting().audiences().get();
+              
+                while (audienceIterator.hasNext()) {
+                
+                  var audience = audienceIterator.next();
+
+                  var bidModifierInAudience = audience.bidding().getBidModifier();
+                  
+                  if(bidModifierInAudience != 1.0) {
+                                        
+                    bidModAudiencesCounter++
+
+                  } //End of bid modifier counter
+                                    
+                } //End of audience iterator
+              
+             } //End of campaign iterator   
+
+
+            var shareAud = audienceCounter / totalCampaigns;
+         
+          
+            var row = [
+                AdsApp.currentAccount().getName(),
+                new Date(),
+                setTypeCount(listPortfolioStrategyType),
+                setTypeCount(listCampaignStrategyType),
+                setTypeCount(listAdGroupStrategyType), //might not exist
+                bidModAudiencesCounter,
+                shareAud,
+                searchCounter,
+                ShoppingCounter,
+                DisplayCounter,
+                YTCounter,
+                accountImprShareBudget,
+                maxOut(listImprShareBudget),
+                accountImprShareRank,
+                maxOut(listImprShareRank),
+                disapprovedAdsCounter,
+                sitelinksCounter,
+                calloutCounter,
+                snippetCounter,
+            ];
+
+            Logger.log("output:" + row);
+        }
+
+        sheet.getRange(minRow + 2, 4, 1, row.length).setValues([row])
+        sheetData = sheet.getRange('A2:P' + String(sheet.getLastRow())).getValues();
+
+    } // While b (always)
+}
+
+function getMinRow(data, colNum) {
+
+    var min;
+
+    for (var i = 0; i < data.length; i++) {
+
+
+        if (data[i][colNum] == "") {
+            return i
+        }
+
+
+        if (!(min)) {
+
+            var min = data[i][colNum].getTime();
+            var row = i;
+
+        } else if (data[i][colNum].getTime() < min) {
+
+            var min = data[i][colNum].getTime();
+            var row = i;
+
+        }
+
+    }
+    return row
+}
+
+
+//FUNCTION TO COUNT UNIQUE TYPES INSIDE ARRAY
+function setTypeCount(arrayType){
+  
+  var uniqueType = unique(arrayType);
+  var listType = [];
+  var type;
+  var typeCount;
+  var typeName;
+  for (var u in uniqueType){
+    
+    
+    typeName = uniqueType[u]
+    typeCount = arrayType.filter(function(x){return x==uniqueType[u]}).length
+    type = typeName + ' ('+typeCount+')'
+    listType.push(type)
+  
+  }
+  
+  
+  return listType.join(", ")
+  
+}
+
+//FUNCTION TO PUSH UNIQUE TYPES INSIDE ARRAY
+function unique(arr) {
+    var u = {},
+        a = [];
+    for (var i = 0, l = arr.length; i < l; ++i) {
+        if (!u.hasOwnProperty(arr[i])) {
+            a.push(arr[i]);
+            u[arr[i]] = 1;
+        }
+    }
+    return a;
+}
+
+//FUNCTION MAXOUT
+function maxOut(arrayValues) {
+  var max = 0;
+  var fieldOut = "--";
+  
+  for (var i in arrayValues) {
+    
+    if (arrayValues[i].value > max){
+    
+      max = arrayValues[i].value;
+      fieldOut = arrayValues[i].name+" ("+arrayValues[i].valueOut+')';
+  
+    }
+  
+  }
+
+  return fieldOut
+
+}
+
+//FUNCTION TO CONVERT PERCENT TO NUMBER
+function convertPercentToNum(string){
+
+  if (string == "--"){
+
+    return 0;
+
+  } else {
+
+    return parseFloat(string) / 100.0;
+
+  }
+}
+
+
+/*
+function main_fgh(){
+  
+  var accIter = AdsManagerApp.accounts().withLimit(1).get();
+  var acc = accIter.next();
+  Logger.log(acc.getName())
+  AdsManagerApp.select(acc)
+  
+  var adGroupReport = AdsApp.report("SELECT AdGroupId "+
+                                    "FROM ADGROUP_PERFORMANCE_REPORT "+
+                                    "WHERE Status = ENABLED "+
+                                    "DURING LAST_7_DAYS").rows();
+  
+  
+  var adGroupAdsReport = AdsApp.report("SELECT AdGroupId, Id, AdType "+
+                                        "FROM AD_PERFORMANCE_REPORT "+
+                                        "WHERE Status = ENABLED AND AdGroupStatus = ENABLED AND AdType IN ['RESPONSIVE_SEARCH_AD', 'EXPANDED_TEXT_AD'] "+
+                                        "DURING LAST_7_DAYS").rows();
+  var mapAdGroupETA = {};
+  var mapAdGroupRSA = {};
+
+  while(adGroupReport.hasNext()){
+    
+    let row = adGroupReport.next();
+    
+    mapAdGroupETA[row.AdGroupId]; 
+  
+  }
+  
+  while(adGroupAdsReport.hasNext()){
+    
+    let row = adGroupAdsReport.next();
+    
+    mapAdGroupETA[row.AdGroupId] =  mapAdGroupETA[row.AdGroupId] + 1; 
+  
+  }
+  
+  Logger.log(mapAdGroupETA)
+}*/
