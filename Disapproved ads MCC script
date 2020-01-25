@@ -1,6 +1,6 @@
-var NOTIFY = 'jess@precisdigital.com,xavier@precisdigital.com'; //add a comma and your email address inside the ''
-var SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1u-9WQZenp9rPb_WltD-jN5OYtw285l1G4m5iu7i4fuA/edit#gid=0'; //substitute with your spreasheet URL within the ''
-var MCC_NAME = 'HBO CE' //substitute with your MCC name within the ''
+var NOTIFY = 'test@test.com,test2@test.com'; //add a comma and your email address inside the ''
+var SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1u-9jsiijrPb_WltD-jN5OYtw285l1G4m5iu7i4fuA/edit#gid=0'; //substitute with your spreasheet URL within the ''
+var MCC_NAME = 'MCC Name' //substitute with your MCC name within the ''
 
 function main() {
   
